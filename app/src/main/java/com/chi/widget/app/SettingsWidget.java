@@ -5,11 +5,16 @@ import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.RemoteViews;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 
 
@@ -51,6 +56,13 @@ public class SettingsWidget extends AppWidgetProvider {
         RemoteViews remoteViews = new RemoteViews(ctx.getPackageName(), R.layout.activity_main);
         remoteViews.setOnClickPendingIntent(R.id.toggleWifi, pIntent);
 
+        Intent mobileIntent = new Intent(ctx, SettingsWidget.class);
+        mobileIntent.setAction("mobile").putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetID);
+        PendingIntent pIntentMobile = PendingIntent.getBroadcast(ctx, widgetID, mobileIntent, 0);
+
+        remoteViews.setOnClickPendingIntent(R.id.toggleMobileInternet, pIntentMobile);
+
+
         appWidgetManager.updateAppWidget(widgetID, remoteViews);
     }
 
@@ -71,30 +83,44 @@ public class SettingsWidget extends AppWidgetProvider {
                 Log.e("widget", "set wifi on");
                 wifiManager.setWifiEnabled(true);
             }
+        } else if (intent.getAction().equalsIgnoreCase("mobile")) {
+            int mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
+            Bundle extras = intent.getExtras();
+            if (extras != null) {
+                mAppWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+            }
+            if (mAppWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                try {
+                    setMobileDataEnabled(context, true);
+                } catch (InvocationTargetException e) {
+                    e.printStackTrace();
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                } catch (NoSuchFieldException e) {
+                    e.printStackTrace();
+                } catch (NoSuchMethodException e) {
+                    e.printStackTrace();
+                }
+                Log.e("widget", "set mobile on");
+            }
         }
+
     }
 
-    //    @Override
-//    protected void onCreate(Bundle savedInstanceState) {
-//        super.onCreate(savedInstanceState);
-//        setContentView(R.layout.activity_main);
-//    }
-//
-//
-//    @Override
-//    public boolean onCreateOptionsMenu(Menu menu) {
-//
-//        getMenuInflater().inflate(R.menu.main, menu);
-//        return true;
-//    }
-//
-//    @Override
-//    public boolean onOptionsItemSelected(MenuItem item) {
-//        int id = item.getItemId();
-//        if (id == R.id.action_settings) {
-//            return true;
-//        }
-//        return super.onOptionsItemSelected(item);
-//    }
+    private void setMobileDataEnabled(Context context, boolean enabled) throws InvocationTargetException, IllegalAccessException, ClassNotFoundException, NoSuchFieldException, NoSuchMethodException {
+        final ConnectivityManager conman = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        final Class conmanClass = Class.forName(conman.getClass().getName());
+        final Field connectivityManagerField = conmanClass.getDeclaredField("mService");
+        connectivityManagerField.setAccessible(true);
+        final Object connectivityManager = connectivityManagerField.get(conman);
+        final Class connectivityManagerClass = Class.forName(connectivityManager.getClass().getName());
+        final Method setMobileDataEnabledMethod = connectivityManagerClass.getDeclaredMethod("setMobileDataEnabled", Boolean.TYPE);
+        setMobileDataEnabledMethod.setAccessible(true);
+
+        setMobileDataEnabledMethod.invoke(connectivityManager, enabled);
+    }
+
 
 }
